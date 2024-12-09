@@ -32,14 +32,26 @@ class FeatureEngineering:
         plt.show()
 
     def get_spectrum(self, p_y: np.ndarray) -> pl.DataFrame:
-        length = len(p_y)
-        sampling_rate = 1.0 / self.frequency_hz
         yf = fftpack.fft(p_y)
-        yf = length * np.abs(yf[: length // 2])
-        xf = np.linspace(0.0, 1.0 / (2.0 * sampling_rate), length // 2)
-        spectrum_df = pl.DataFrame({"xf": xf, "yf": yf})
+        xf = fftpack.fftfreq(len(p_y), 1 / self.frequency_hz)
+        spectrum_df = pl.DataFrame({"xf": xf, "yf": np.abs(yf)})
 
         return spectrum_df
+
+    def get_mean(self, p_data: pl.DataFrame):
+        p_data = p_data.with_columns(
+            [
+                pl.all().mean(axis=1).alias("mean"),
+                pl.all().std(axis=1).alias("std"),
+                pl.all().kurtosis(axis=1).alias("kurtosis"),
+                pl.all().skew(axis=1).alias("skewness"),
+            ]
+        )
+
+        # Selecionar apenas as features extraídas
+        features = p_data.select(["mean", "std", "kurtosis", "skewness"]).to_numpy()
+
+        return features
 
     def get_greatests_harmonics(self, p_df: pl.DataFrame, top_n: int, p_min_freq: float) -> pl.DataFrame:
         p_df = p_df.lazy().filter(pl.col("xf") > p_min_freq).collect()
@@ -53,10 +65,28 @@ class FeatureEngineering:
         spectrum_df = self.get_greatests_harmonics(spectrum_df, p_top_harmonics, p_freq_thresh)
 
         for idx in range(p_top_harmonics):
-            spectrum_feat[f"harmonic_{idx+1}_frequency"] = spectrum_df.row(idx, named=True)["xf"]
-            spectrum_feat[f"harmonic_{idx+1}"] = spectrum_df.row(idx, named=True)["yf"]
+            spectrum_feat[f"{p_target_feature}_harmonic_{idx+1}_frequency"] = spectrum_df.row(idx, named=True)["xf"]
+            spectrum_feat[f"{p_target_feature}_harmonic_{idx+1}"] = spectrum_df.row(idx, named=True)["yf"]
 
         return pl.DataFrame(spectrum_feat)
+
+    def get_manual_features(self, p_name: str, p_df: pl.DataFrame, p_target_feature) -> pl.DataFrame:
+        feat_dict = {"file_name": p_name}
+
+        df = p_df.with_columns(
+            [
+                pl.col(p_target_feature).mean().alias("mean"),
+                pl.col(p_target_feature).std().alias("std"),
+                pl.col(p_target_feature).kurtosis().alias("kurtosis"),
+                pl.col(p_target_feature).skew().alias("skewness"),
+            ]
+        )
+        feat_dict["mean"] = df["mean"][0]
+        feat_dict["std"] = df["std"][0]
+        feat_dict["kurtosis"] = df["kurtosis"][0]
+        feat_dict["skewness"] = df["skewness"][0]
+
+        return pl.DataFrame(feat_dict)
 
     def plot_spectrum(self, p_column: str, p_motor_operations: list, p_freq_thresh: float):
         filterd_dataset = self.dataset[[p_column, "file_name"]]
@@ -82,9 +112,8 @@ if __name__ == "__main__":
     load_dotenv("motorvibration/config/.env")
     files_list = [
         "motorvibration/Data/normal/12.288.csv",
-        "motorvibration/Data/normal/13.1072.csv",
-        "motorvibration/Data/normal/29.4912.csv",
-        "motorvibration/Data/normal/47.7184.csv",
+        "motorvibration/Data/overhang-ball_fault/35g/32.1536.csv",
+        "motorvibration/Data/imbalance/35g/56.7296.csv",
     ]
 
     datasets_list = []
@@ -100,9 +129,8 @@ if __name__ == "__main__":
         "overhang_3",
         [
             "motorvibration/Data/normal/12.288.csv",
-            "motorvibration/Data/normal/13.1072.csv",
-            "motorvibration/Data/normal/29.4912.csv",
-            "motorvibration/Data/normal/47.7184.csv",
+            "motorvibration/Data/overhang-ball_fault/35g/",
+            "motorvibration/Data/imbalance/35g",
         ],
         5.0,
     )

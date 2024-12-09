@@ -32,19 +32,40 @@ class DataLoader:
 
         return csv_files_list
 
-    def load_dataset(self, p_target_feature: str, p_freq_thresh: float, p_top_harmonics: int) -> pl.DataFrame:
+    def get_feats_multiple_targets(
+        self,
+        p_df: pl.DataFrame,
+        p_file: str,
+        p_feat_eng: FeatureEngineering,
+        p_targets_list: list,
+        p_freq_thresh: float,
+        p_top_harmonics: int,
+    ):
+        feats_list = []
+        for target in p_targets_list:
+            spectrum_feat = p_feat_eng.get_top_harmonics(
+                p_file.replace("\\", "/"), p_df, target, p_freq_thresh, p_top_harmonics
+            )
+            feats_list.append(spectrum_feat)
+
+        return feats_list
+
+    def load_dataset(self, p_target_features: str, p_freq_thresh: float, p_top_harmonics: int) -> pl.DataFrame:
         csv_files_list = self.list_files()
         dataframes_list = []
 
         for file, sub_folder in tqdm(csv_files_list):
-            spectrum_feat = {"file_name": file.replace("\\", "/")}
             sub_folder = sub_folder.replace("\\", "/")
             df = pl.read_csv(file, has_header=False, new_columns=literal_eval(os.environ["dataset_columns_name"]))
             feat_eng = FeatureEngineering(df, 50.0)
-            spectrum_feat = feat_eng.get_top_harmonics(
-                file.replace("\\", "/"), df, p_target_feature, p_freq_thresh, p_top_harmonics
+
+            feats_list = self.get_feats_multiple_targets(
+                df, file, feat_eng, p_target_features, p_freq_thresh, p_top_harmonics
             )
-            dataframes_list.append(spectrum_feat)
+
+            spectrum_feats_df = pl.concat(feats_list, how="align")
+
+            dataframes_list.append(spectrum_feats_df)
 
         full_df = pl.concat(dataframes_list)
 
@@ -54,7 +75,9 @@ class DataLoader:
 if __name__ == "__main__":
     load_dotenv("motorvibration/config/.env")
     data_loader = DataLoader(os.environ["dataset_path"])
-    dataset = data_loader.load_dataset(os.environ["target_feature"], p_freq_thresh=5.0, p_top_harmonics=10)
+    dataset = data_loader.load_dataset(
+        literal_eval(os.environ["target_feature"]), p_freq_thresh=1.0, p_top_harmonics=100
+    )
     print(dataset)
 
     dataset.write_csv(f"{os.environ["dataset_path"]}/motor_vibration_dataset.csv")
