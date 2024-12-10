@@ -5,6 +5,7 @@ from scipy.fftpack import fft
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
+from sklearn.metrics import confusion_matrix, classification_report
 from tqdm import tqdm
 from glob import glob
 
@@ -141,13 +142,26 @@ def visualize_labels(file_list, clusters):
     plt.show()
 
 
+# Step 7: Evaluate Clustering Performance
+def evaluate_clustering(file_list, clusters):
+    true_labels = [0 if "normal" in name.lower() else 1 for _, name in file_list]
+    predicted_labels = [0 if cluster == -1 else 1 for cluster in clusters]  # -1 (noise) as anomaly
+
+    # Compute confusion matrix and classification report
+    cm = confusion_matrix(true_labels, predicted_labels)
+    report = classification_report(true_labels, predicted_labels, target_names=["Normal", "Anomaly"])
+
+    print("Confusion Matrix:\n", cm)
+    print("Classification Report:\n", report)
+
+
 # Main Pipeline
 if __name__ == "__main__":
     # Base path to data
     base_path = "motorvibration/Data"  # Update with the correct path
 
     # Sampling rate (update as needed)
-    sampling_rate = 50000
+    sampling_rate = 50
 
     # List Files
     file_list = list_files(base_path)
@@ -167,6 +181,9 @@ if __name__ == "__main__":
 
     # Second Plot: Visualization by Labels
     visualize_labels(file_list, reduced_features)
+
+    # Evaluate Clustering Performance
+    evaluate_clustering(file_list, clusters)
 
     # Display cluster assignment
     print("Cluster Assignments:", clusters)
