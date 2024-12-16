@@ -3,10 +3,12 @@ import numpy as np
 import polars as pl
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, v_measure_score
 import seaborn as sns
+import plotly.express as px
 import matplotlib.pyplot as plt
 
 
@@ -26,7 +28,7 @@ class Model:
     def get_min_max_normalizer(self, p_df: pd.DataFrame) -> MinMaxScaler:
         return MinMaxScaler().fit(p_df)
 
-    def normalize_data(self, p_df):
+    def normalize_data(self, p_df: pd.DataFrame):
         scaler = self.get_min_max_normalizer(p_df)
         return scaler, scaler.transform(p_df)
 
@@ -47,67 +49,99 @@ if __name__ == "__main__":
     all_motor_operations_df = pl.concat([normal_operation_df, not_normal_operation_df])
     print(all_motor_operations_df)
 
+    # Escolher os harmônicos e frequências para o scatter plot
     harmonic = 1
-    fg = sns.FacetGrid(data=all_motor_operations_df, hue="normal_operation", aspect=1.61)
-    fg.map(plt.scatter, f"harmonic_{harmonic}_frequency", f"harmonic_{harmonic}").add_legend()
-    plt.show()
+    x_column = f"overhang_3_harmonic_{harmonic}_frequency"
+    y_column = f"overhang_3_harmonic_{harmonic}"
 
-    training_data = normal_operation_df.drop(["file_name", "normal_operation"]).to_pandas()
-    print(training_data)
-    test_data = all_motor_operations_df.drop(["file_name", "normal_operation"]).to_pandas()
+    # Criar scatter plot interativo
+    fig = px.scatter(
+        all_motor_operations_df,
+        x=x_column,
+        y=y_column,
+        color="normal_operation",
+        hover_data=["file_name"],
+        title=f"Scatter Plot Interativo: {x_column} vs {y_column}",
+        labels={"normal_operation": "Operação Normal"},
+    )
 
-    scaler, normal_data_scaled = model.normalize_data(training_data)
-    all_data_scaled = model.apply_normalizer(test_data, scaler)
+    # Configurar layout do gráfico
+    fig.update_traces(marker=dict(size=8, opacity=0.7, line=dict(width=0.5, color="DarkSlateGrey")))
+    fig.update_layout(
+        xaxis_title=x_column,
+        yaxis_title=y_column,
+        legend_title="Operação",
+    )
+
+    # Exibir o gráfico
+    fig.show()
+
+    training_data = all_motor_operations_df.drop(["file_name", "normal_operation"]).to_pandas()
+
+    scaler, normal_data_scaled = model.normalize_data(
+        normal_operation_df.drop(["file_name", "normal_operation"]).to_pandas()
+    )
+    training_data_scaled = model.apply_normalizer(training_data, scaler)
 
     print(scaler)
     print(normal_data_scaled.shape)
 
-    gmm = GaussianMixture(n_components=1, covariance_type="full", random_state=42)  # Ou use BayesianGaussianMixture
-    gmm.fit(normal_data_scaled)
+    kmeans = DBSCAN(eps=30.0)
+    y_pred = kmeans.fit_predict(training_data_scaled)
+    y_pred[y_pred == 0.0] = 1.0
+    y_pred[y_pred == 2.0] = -1.0
 
-    # Calcular a probabilidade de cada ponto pertencer a cada gaussiana
-    probabilities = gmm.predict_proba(all_data_scaled)
+    ari = adjusted_rand_score(all_motor_operations_df["normal_operation"].to_numpy(), y_pred)
+    nmi = normalized_mutual_info_score(all_motor_operations_df["normal_operation"].to_numpy(), y_pred)
+    v_measure = v_measure_score(all_motor_operations_df["normal_operation"].to_numpy(), y_pred)
 
-    # Identificar a probabilidade máxima para cada ponto
-    max_probabilities = np.max(probabilities, axis=1)
+    print("Adjusted Rand Index (ARI):", ari)
+    print("Normalized Mutual Information (NMI):", nmi)
+    print("V-Measure:", v_measure)
 
-    # Definir limiar para anomalias (por exemplo, probabilidade < 0.05 é anômala)
-    anomaly_threshold = 0.05
-    is_anomaly = max_probabilities < anomaly_threshold
+    # Criar DataFrame para facilitar o uso com Plotly
+    pca = PCA(n_components=2)
+    reduced_data_3d = pca.fit_transform(training_data_scaled)
 
-    # Adicionar rótulos ao DataFrame
-    dataset = dataset.with_columns(
-        pl.Series(name="max_probability", values=max_probabilities), pl.Series(name="is_anomaly", values=is_anomaly)
+    plot_data = pd.DataFrame(reduced_data_3d, columns=["PCA1", "PCA2"])
+    plot_data["Label"] = all_motor_operations_df["normal_operation"].to_numpy()
+
+    # Plotar com Plotly
+    fig = px.scatter(
+        plot_data,
+        x="PCA1",
+        y="PCA2",
+        # z="PCA3",
+        color="Label",
+        title="Anomalias Detectadas com GMM - PCA 3D",
+        labels={"Anomaly": "É Anômalo", "Label": "Rótulo Original"},
+        color_discrete_map={True: "blue", False: "red"},  # Cores para normal (azul) e anômalo (vermelho)
     )
 
-    # Visualizar a distribuição das probabilidades
-    plt.figure(figsize=(10, 6))
-    sns.histplot(max_probabilities, bins=50, kde=True)
-    plt.axvline(anomaly_threshold, color="red", linestyle="--", label="Anomaly Threshold")
-    plt.title("Distribuição das Probabilidades Máximas")
-    plt.xlabel("Probabilidade Máxima")
-    plt.ylabel("Frequência")
-    plt.legend()
-    plt.show()
+    # Configurar layout
+    fig.update_traces(marker=dict(size=6, opacity=0.8))
+    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))  # , zaxis_title="PCA3"))
 
-    # Relatório de classificação
-    original_labels = all_motor_operations_df["normal_operation"].to_pandas().astype(int)
-    predicted_labels = (~is_anomaly).astype(int)
+    # Mostrar o gráfico
+    fig.show()
 
-    print("Relatório de Classificação:")
-    print(classification_report(original_labels, predicted_labels))
+    plot_data["Label"] = y_pred
 
-    # Visualizar em PCA
-    from sklearn.decomposition import PCA
+    # Plotar com Plotly
+    fig = px.scatter(
+        plot_data,
+        x="PCA1",
+        y="PCA2",
+        # z="PCA3",
+        color="Label",
+        title="Anomalias Detectadas com GMM - PCA 3D",
+        labels={"Anomaly": "É Anômalo", "Label": "Rótulo Agrupamento"},
+        color_discrete_map={True: "blue", False: "red"},  # Cores para normal (azul) e anômalo (vermelho)
+    )
 
-    pca = PCA(n_components=2)
-    pca.fit(normal_data_scaled)
-    reduced_data = pca.transform(all_data_scaled)
+    # Configurar layout
+    fig.update_traces(marker=dict(size=6, opacity=0.8))
+    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))  # , zaxis_title="PCA3"))
 
-    plt.figure(figsize=(10, 6))
-    sns.scatterplot(x=reduced_data[:, 0], y=reduced_data[:, 1], hue=original_labels, palette="coolwarm", legend="full")
-    plt.title("Anomalias Detectadas com GMM")
-    plt.xlabel("PCA 1")
-    plt.ylabel("PCA 2")
-    plt.legend(title="É Anômalo")
-    plt.show()
+    # Mostrar o gráfico
+    fig.show()
