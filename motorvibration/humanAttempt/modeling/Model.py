@@ -1,15 +1,11 @@
 from dataclasses import dataclass
-import numpy as np
 import polars as pl
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
-from sklearn.metrics import classification_report
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, v_measure_score
-import seaborn as sns
 import plotly.express as px
-import matplotlib.pyplot as plt
 
 
 @dataclass
@@ -119,8 +115,10 @@ if __name__ == "__main__":
     )
 
     # Configurar layout
-    fig.update_traces(marker=dict(size=6, opacity=0.8))
-    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))  # , zaxis_title="PCA3"))
+    fig.update_traces(marker=dict(size=6, opacity=1.0))
+    fig.update_layout(
+        scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"), template="plotly_dark"
+    )  # , zaxis_title="PCA3"))
 
     # Mostrar o gráfico
     fig.show()
@@ -136,12 +134,14 @@ if __name__ == "__main__":
         color="Label",
         title="Anomalias Detectadas com GMM - PCA 3D",
         labels={"Anomaly": "É Anômalo", "Label": "Rótulo Agrupamento"},
-        color_discrete_map={True: "blue", False: "red"},  # Cores para normal (azul) e anômalo (vermelho)
+        color_continuous_scale=px.colors.sequential.Viridis,  # Cores para normal (azul) e anômalo (vermelho)
     )
 
     # Configurar layout
-    fig.update_traces(marker=dict(size=6, opacity=0.8))
-    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))  # , zaxis_title="PCA3"))
+    fig.update_traces(marker=dict(size=6, opacity=1.0))
+    fig.update_layout(
+        scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"), template="plotly_dark"
+    )  # , zaxis_title="PCA3"))
 
     # Mostrar o gráfico
     fig.show()
