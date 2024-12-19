@@ -109,7 +109,7 @@ if __name__ == "__main__":
         x="Component1",
         y="Component2",
         color="Label",
-        title="Anomalias Detectadas com GMM - PCA 3D",
+        title="Dados de Operações do Motor Rotuladas",
         labels={"Anomaly": "É Anômalo", "Label": "Rótulo Original"},
     )
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))
     fig.show()
 
-    dbscan = DBSCAN(eps=30.0)
+    dbscan = DBSCAN(eps=30.0, min_samples=10)
     y_pred = dbscan.fit_predict(training_data_scaled)
 
     ari = adjusted_rand_score(all_motor_operations_df["normal_operation"].to_numpy(), y_pred)
@@ -144,7 +144,7 @@ if __name__ == "__main__":
         x="Component1",
         y="Component2",
         color="Label",
-        title="Anomalias Detectadas com GMM - PCA 3D",
+        title="Dados de Operações do Motor com Rótulos Binários",
         labels={"Label": "Rótulo Original"},
     )
     fig.update_traces(marker=dict(size=6, opacity=1.0))
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         x="Component1",
         y="Component2",
         color="Label",
-        title="Anomalias Detectadas com GMM - PCA 3D",
+        title="DBSCAN - Agrupamento Realizado para Detecção de Anomalias",
         labels={"Anomaly": "É Anômalo", "Label": "Rótulo Agrupamento"},
     )
     fig.update_traces(marker=dict(size=6, opacity=1.0))
@@ -181,40 +181,11 @@ if __name__ == "__main__":
         x="Component1",
         y="Component2",
         color="Label",
-        title="Anomalias Detectadas com GMM - PCA 3D",
+        title="DBSCAN - Agrupamento Realizado para Detecção de Anomalias (Junção dos Cluster de Operação Normal)",
         labels={"Anomaly": "É Anômalo", "Label": "Rótulo Agrupamento"},
     )
 
     fig.update_traces(marker=dict(size=6, opacity=1.0))
-    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))
-
-    fig.show()
-
-    for eps in range(30, 150, 1):
-        dbscan = DBSCAN(eps=eps)
-        y_pred = dbscan.fit_predict(training_data_scaled)
-
-        print(f"Eps: {eps}")
-        davies_bouding = davies_bouldin_score(training_data_scaled, y_pred)
-        silhouette = silhouette_score(training_data_scaled, y_pred)
-        calinski = calinski_harabasz_score(training_data_scaled, y_pred)
-        print(f"davies_bouldin_score: {davies_bouding}")
-        print(f"silhouette_score: {silhouette}")
-        print(f"calinski_harabasz_score: {calinski}")
-
-    dbscan = DBSCAN(eps=69)
-    y_pred = dbscan.fit_predict(training_data_scaled)
-    plot_data["Label"] = list(map(str, y_pred))
-    fig = px.scatter(
-        plot_data,
-        x="Component1",
-        y="Component2",
-        color="Label",
-        title="Anomalias Detectadas com GMM - PCA 3D",
-        labels={"Anomaly": "É Anômalo", "Label": "Rótulo Agrupamento"},
-    )
-
-    fig.update_traces(marker=dict(size=6, opacity=1.0))
-    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2"))
+    fig.update_layout(scene=dict(xaxis_title="Component1", yaxis_title="Component2"))
 
     fig.show()
